@@ -15,16 +15,23 @@ public class WordGame : MonoBehaviour {
 	static public WordGame S;
 
 	public GameObject prefabLetter;
-	public Rect wordArea = new Rect(-24, 19, 48, 28);
+	public Rect wordArea = new Rect(24, 19, 48, 28);
 	public float letterSize = 1.5f;
 	public bool showAllWyrds = true;
 	public float bigLetterSize = 4f;
+	public Color bigColorDim = new Color(0.8f, 0.8f, 0.8f);
+	public Color bigColorSelected = Color.white;
+	public Vector3 bigLetterCenter = new Vector3(0, -16, 0);
 
 	public bool _________________;
 
 	public GameMode mode = GameMode.preGame;
 	public WordLevel  currLevel;
 	public List<Wyrd> wyrds;
+	public List<Letter> bigLetters;
+	public List<Letter> bigLettersActive;
+	public string testWord;
+	private string upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 	void Awake(){
 		S = this;
@@ -34,6 +41,107 @@ public class WordGame : MonoBehaviour {
 		mode = GameMode.loading;
 		WordList.S.Init ();
 	}//end of Start()
+
+	void Update(){
+		Letter lett;
+		char c;
+
+		switch (mode){
+		case GameMode.inLevel:
+			foreach (char cIt in Input.inputString) {
+				c = System.Char.ToUpperInvariant (cIt);
+
+				if (upperCase.Contains (c)) {
+					lett = FindNextLetterByChar (c);
+					if (lett != null) {
+						testWord += c.ToString ();
+						bigLettersActive.Add (lett);
+						bigLetters.Remove (lett);
+						lett.color = bigColorSelected;
+						ArrangeBigLetters ();
+					}//end of nested if
+				}//end of if
+
+				//if the user hit backspace
+				if (c == '\b') {
+					if (bigLettersActive.Count == 0) return;
+					if (testWord.Length > 1) testWord = testWord.Substring (0, testWord.Length - 1);
+					else testWord = "";
+
+					lett = bigLettersActive [bigLettersActive.Count - 1];
+					bigLettersActive.Remove (lett);
+					bigLetters.Add (lett);
+					lett.color = bigColorDim;
+					ArrangeBigLetters ();
+				}//end of if
+
+				//if the user hits enter or return check to see if the word is right
+				if (c == '\n' || c == '\r') {
+					CheckWord ();
+				}//end of if
+
+				//if the users enters a space then shuffle the bigLetters
+				if (c == ' ') {
+					bigLetters = ShuffleLetters (bigLetters);
+					ArrangeBigLetters ();
+				}//end of if
+			}//end of foreach
+			break;
+		}//end of switch
+	}//end of Update()
+		
+	Letter FindNextLetterByChar(char c){
+		foreach (Letter l in bigLetters) {
+			if (l.c == c) return l;
+		}//end of foreach
+		return null;
+	}//end of FindNextLetterByChar(char c)
+
+	public void CheckWord(){
+		string subword;
+		bool foundTestWord = false;
+
+		List<int> containedWords = new List<int> ();
+		for (int i = 0; i < currLevel.subWords.Count; i++) {
+			if (wyrds [i].found) continue;
+			subword = currLevel.subWords [i];
+
+			if (string.Equals (testWord, subword)) {
+				HighlightWyrd (i);
+				foundTestWord = true;
+			}//end of if
+			else if (testWord.Contains (subword)) {
+				containedWords.Add (i);
+			}//end of else if
+		}//end of for loop
+
+		if (foundTestWord) {
+			int numContained = containedWords.Count;
+			int ndx;
+			for (int i = 0; i < containedWords.Count; i++) {
+				ndx = numContained - i - 1;
+				HighlightWyrd (containedWords [ndx]);
+			}//end of for loop
+		}//end of if
+
+		ClearBigLettersActive ();
+	}//end of CheckWord()
+
+	void HighlightWyrd(int ndx){
+		wyrds [ndx].found = true;
+		wyrds [ndx].color = (wyrds [ndx].color + Color.white) / 2f;
+		wyrds [ndx].visible = true;
+	}//end of HighlightWyrd(int ndx)
+
+	void ClearBigLettersActive(){
+		testWord = "";
+		foreach (Letter l in bigLettersActive) {
+			bigLetters.Add (l);
+			l.color = bigColorDim;
+		}//end of foreach
+		bigLettersActive.Clear();
+		ArrangeBigLetters ();
+	}//end of ClearBigLettersActive()
 
 	public void WordListParseComplete(){
 		mode = GameMode.makeLevel;
@@ -127,7 +235,7 @@ public class WordGame : MonoBehaviour {
 				lett = go.GetComponent<Letter> ();
 				lett.c = c;
 				pos = new Vector3 (wordArea.x + left + j * letterSize, wordArea.y, 0);
-				pos.y = (i % numRows) * letterSize;
+				pos.y -= (i % numRows) * letterSize;
 				lett.pos = pos;
 
 				go.transform.localScale = Vector3.one * letterSize;
@@ -140,5 +248,57 @@ public class WordGame : MonoBehaviour {
 
 			if (i % numRows == numRows - 1) left += (columnWidth + .5f)* letterSize;
 		}//end of for i loop
+
+		bigLetters = new List<Letter> ();
+		bigLettersActive = new List<Letter> ();
+
+		for (int i = 0; i < currLevel.word.Length; i++) {
+			c = currLevel.word [i];
+			go = Instantiate (prefabLetter) as GameObject;
+			lett = go.GetComponent<Letter> ();
+			lett.c = c;
+			go.transform.localScale = Vector3.one * bigLetterSize;
+
+			pos = new Vector3 (0, -100, 0);
+			lett.pos = pos;
+
+			col = bigColorDim;
+			lett.color = col;
+			lett.visible = true;
+			lett.big = true;
+			bigLetters.Add (lett);
+		}//end of for loop
+
+		bigLetters = ShuffleLetters (bigLetters);
+		ArrangeBigLetters ();
+		mode = GameMode.inLevel;
 	}//end of Layout()
+
+	List<Letter> ShuffleLetters(List<Letter> letts){
+		int ndx;
+		List<Letter> newL = new List<Letter> ();
+		while (letts.Count > 0) {
+			ndx = Random.Range (0, letts.Count);
+			newL.Add (letts [ndx]);
+			letts.RemoveAt (ndx);
+		}//end of while loop
+		return newL;
+	}//end of ShuffleLetters(List<Letter> letts)
+
+	void ArrangeBigLetters(){
+		float halfWidth = ((float)bigLetters.Count) / 2f - .5f;
+		Vector3 pos;
+		for (int i = 0; i < bigLetters.Count; i++) {
+			pos = bigLetterCenter;
+			pos.x += (i - halfWidth) * bigLetterSize;
+			bigLetters [i].pos = pos;
+		}//end of for loop
+		halfWidth = ((float) bigLettersActive.Count)/2f - .5f;
+		for (int i = 0; i < bigLettersActive.Count; i++) {
+			pos = bigLetterCenter;
+			pos.x += (i - halfWidth) * bigLetterSize;
+			pos.y += bigLetterSize * 1.25f;
+			bigLettersActive [i].pos = pos;
+		}//end of for loop
+	}//end of ArrangeBigLetters()
 }//end of class
