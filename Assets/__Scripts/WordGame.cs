@@ -22,6 +22,10 @@ public class WordGame : MonoBehaviour {
 	public Color bigColorDim = new Color(0.8f, 0.8f, 0.8f);
 	public Color bigColorSelected = Color.white;
 	public Vector3 bigLetterCenter = new Vector3(0, -16, 0);
+	public List <float> scoreFontSizes = new List<float> {24, 36, 36, 1};
+	public Vector3 scoreMidPoint = new Vector3(1,1,0);
+	public float scoreComboDelay = 0.5f;
+	public Color[] wyrdPalette;
 
 	public bool _________________;
 
@@ -77,7 +81,7 @@ public class WordGame : MonoBehaviour {
 
 				//if the user hits enter or return check to see if the word is right
 				if (c == '\n' || c == '\r') {
-					CheckWord ();
+					StartCoroutine(CheckWord ());
 				}//end of if
 
 				//if the users enters a space then shuffle the bigLetters
@@ -90,6 +94,33 @@ public class WordGame : MonoBehaviour {
 		}//end of switch
 	}//end of Update()
 		
+	void Score(Wyrd wyrd, int combo){
+		Vector3 pt = wyrd.letters [0].transform.position;
+		List<Vector3> pts = new List <Vector3> ();
+
+		pt = Camera.main.WorldToViewportPoint (pt);
+		pt.z = 0;
+
+		pts.Add (pt);
+
+		pts.Add (scoreMidPoint);
+
+		pts.Add (Scoreboard.S.transform.position);
+
+		int value = wyrd.letters.Count * combo;
+		FloatingScore fs = Scoreboard.S.CreateFloatingScore (value, pts);
+
+		fs.timeDuration = 2f;
+		fs.fontSizes = scoreFontSizes;
+
+		fs.easingCurve = Easing.InOut + Easing.InOut;
+
+		string txt = wyrd.letters.Count.ToString ();
+		if (combo > 1) txt += " x " + combo;
+
+		fs.GetComponent<GUIText> ().text = txt;
+	}//end of Score(Wyrd wyrd, int combo)
+
 	Letter FindNextLetterByChar(char c){
 		foreach (Letter l in bigLetters) {
 			if (l.c == c) return l;
@@ -97,7 +128,7 @@ public class WordGame : MonoBehaviour {
 		return null;
 	}//end of FindNextLetterByChar(char c)
 
-	public void CheckWord(){
+	public IEnumerator CheckWord(){
 		string subword;
 		bool foundTestWord = false;
 
@@ -108,6 +139,7 @@ public class WordGame : MonoBehaviour {
 
 			if (string.Equals (testWord, subword)) {
 				HighlightWyrd (i);
+				Score (wyrds [i], 1);
 				foundTestWord = true;
 			}//end of if
 			else if (testWord.Contains (subword)) {
@@ -119,8 +151,10 @@ public class WordGame : MonoBehaviour {
 			int numContained = containedWords.Count;
 			int ndx;
 			for (int i = 0; i < containedWords.Count; i++) {
+				yield return (new WaitForSeconds (scoreComboDelay));
 				ndx = numContained - i - 1;
 				HighlightWyrd (containedWords [ndx]);
+				Score (wyrds [containedWords [ndx]], i + 2);
 			}//end of for loop
 		}//end of if
 
@@ -204,8 +238,8 @@ public class WordGame : MonoBehaviour {
 		Layout ();
 	}//end of SubWordSearchComplete()
 
-	void Layout(){
-		wyrds = new List<Wyrd> ();
+	void Layout() {
+		wyrds = new List<Wyrd>();
 
 		GameObject go;
 		Letter lett;
@@ -217,60 +251,59 @@ public class WordGame : MonoBehaviour {
 		Color col;
 		Wyrd wyrd;
 
-		//how many rows of letters will fit on the screen?
 		int numRows = Mathf.RoundToInt(wordArea.height/letterSize);
 
-		//make a Wyrd from each level.subWord
-		for (int i = 0; i < currLevel.subWords.Count; i++) {
-			wyrd = new Wyrd ();
-			word = currLevel.subWords [i];
+		for (int i=0; i<currLevel.subWords.Count; i++) {
+			wyrd = new Wyrd();
+			word = currLevel.subWords[i];
 
-			//expand the column if the word is bigger
-			columnWidth = Mathf.Max(columnWidth, word.Length);
+			columnWidth = Mathf.Max( columnWidth, word.Length );
 
-			//instatiate a prefab for each letter
-			for (int j = 0; j < word.Length; j++) {
-				c = word [j];
+			for (int j=0; j<word.Length; j++) {
+				c = word[j]; 
 				go = Instantiate(prefabLetter) as GameObject;
-				lett = go.GetComponent<Letter> ();
-				lett.c = c;
-				pos = new Vector3 (wordArea.x + left + j * letterSize, wordArea.y, 0);
-				pos.y -= (i % numRows) * letterSize;
+				lett = go.GetComponent<Letter>();
+				lett.c = c; 
+				pos = new Vector3(wordArea.x+left+j*letterSize, wordArea.y, 0);
+				lett.timeStart = Time.time + i*0.05f;
+				pos.y -= (i%numRows)*letterSize;
+				lett.position = pos+Vector3.up*(20+i%numRows);
 				lett.pos = pos;
-
-				go.transform.localScale = Vector3.one * letterSize;
-				wyrd.Add (lett);
+				lett.timeStart = Time.time + i*0.05f;
+				go.transform.localScale = Vector3.one*letterSize;
+				wyrd.Add(lett);
 			}//end of for j loop
 
 			if (showAllWyrds) wyrd.visible = true;
 
-			wyrds.Add (wyrd);
+			wyrd.color = wyrdPalette[word.Length-WordList.S.wordLengthMin];
+			wyrds.Add(wyrd);
 
-			if (i % numRows == numRows - 1) left += (columnWidth + .5f)* letterSize;
+			if (i%numRows == numRows-1) left += (columnWidth+0.5f)*letterSize;
 		}//end of for i loop
 
-		bigLetters = new List<Letter> ();
-		bigLettersActive = new List<Letter> ();
+		bigLetters = new List<Letter>();
+		bigLettersActive = new List<Letter>();
 
-		for (int i = 0; i < currLevel.word.Length; i++) {
-			c = currLevel.word [i];
-			go = Instantiate (prefabLetter) as GameObject;
-			lett = go.GetComponent<Letter> ();
+		for (int i=0; i<currLevel.word.Length; i++) {
+			c = currLevel.word[i];
+			go = Instantiate(prefabLetter) as GameObject;
+			lett = go.GetComponent<Letter>();
 			lett.c = c;
-			go.transform.localScale = Vector3.one * bigLetterSize;
-
-			pos = new Vector3 (0, -100, 0);
-			lett.pos = pos;
-
+			go.transform.localScale = Vector3.one*bigLetterSize;
+			pos = new Vector3( 0, -100, 0 );
+			lett.position = pos;
+			lett.timeStart = Time.time + currLevel.subWords.Count*0.05f;
+			lett.easingCurve = Easing.Sin+"-0.18"; 
 			col = bigColorDim;
 			lett.color = col;
-			lett.visible = true;
+			lett.visible = true; 
 			lett.big = true;
-			bigLetters.Add (lett);
+			bigLetters.Add(lett);
 		}//end of for loop
 
-		bigLetters = ShuffleLetters (bigLetters);
-		ArrangeBigLetters ();
+		bigLetters = ShuffleLetters(bigLetters);
+		ArrangeBigLetters();
 		mode = GameMode.inLevel;
 	}//end of Layout()
 
@@ -291,6 +324,7 @@ public class WordGame : MonoBehaviour {
 		for (int i = 0; i < bigLetters.Count; i++) {
 			pos = bigLetterCenter;
 			pos.x += (i - halfWidth) * bigLetterSize;
+			pos.z = -3;
 			bigLetters [i].pos = pos;
 		}//end of for loop
 		halfWidth = ((float) bigLettersActive.Count)/2f - .5f;
@@ -298,6 +332,7 @@ public class WordGame : MonoBehaviour {
 			pos = bigLetterCenter;
 			pos.x += (i - halfWidth) * bigLetterSize;
 			pos.y += bigLetterSize * 1.25f;
+			pos.z = -3;
 			bigLettersActive [i].pos = pos;
 		}//end of for loop
 	}//end of ArrangeBigLetters()

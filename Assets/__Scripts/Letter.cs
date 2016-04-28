@@ -1,60 +1,101 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-
 public class Letter : MonoBehaviour {
-	private char _c;
-	public TextMesh tMesh;
-	public Renderer tRend;
 
-	public bool big = false;
+	private char _c; // The char shown on this Letter
+	public TextMesh tMesh; // The TextMesh shows the char
+	public Renderer tRend; // The Renderer of 3D Text. This will
+	// determine whether the char is visible
+	public bool big = false; // Big letters are a little different
+	// Linear interpolation fields
+	public List<Vector3> pts = null;
+	public float timeDuration = 0.5f;
+	public float timeStart = -1;
+	public string easingCurve = Easing.InOut; // Easing from Utils.cs
 
-	void Awake(){
-		tMesh = GetComponentInChildren<TextMesh> ();
-		tRend = tMesh.GetComponent<Renderer> ();
+	void Awake() {
+		tMesh = GetComponentInChildren<TextMesh>();
+		tRend = tMesh.GetComponent<Renderer>();
 		visible = false;
-	}//end of Awake()
+	}
 
-	public char c{
-		get{
-			return _c;
-		}//end of get
-		set{
+	// Used to get or set _c and the letter shown by 3D Text
+	public char c {
+		get {
+			return( _c );
+		}
+		set {
 			_c = value;
-			tMesh.text = _c.ToString ();
-		}//end of set
-	}//end of c
+			tMesh.text = _c.ToString();
+		}
+	}
 
-	public string str{
-		get{
-			return(_c.ToString ());
-		}//end of get
-		set{
-			c = value [0];
-		}//end of set
-	}//end of str
+	// Gets or sets _c as a string
+	public string str {
+		get {
+			return( _c.ToString() );
+		}
+		set {
+			c = value[0];
+		}
+	}
 
-	public bool visible{
-		get{
-			return(tRend.enabled);
-		}//end of get
-		set{
+	// Enables or disables the renderer for 3D Text, which causes the char to be
+	// visible or invisible respectively.
+	public bool visible {
+		get {
+			return( tRend.enabled );
+		}
+		set {
 			tRend.enabled = value;
-		}//end of set
-	}//end of visible
+		}
+	}
 
-	public Color color{
-		get{
-			return (GetComponent<Renderer>().material.color);
-		}//end of get
-		set{
-			GetComponent<Renderer> ().material.color = value;
-		}//end of set
-	}//end of color
-
-	public Vector3 pos{
-		set{
+	// Gets or sets the color of the rounded rectangle
+	public Color color {
+		get {
+			return(GetComponent<Renderer>().material.color);
+		}
+		set {
+			GetComponent<Renderer>().material.color = value;
+		}
+	}
+	// Now sets-up a Bezier curve to move to the new position
+	public Vector3 pos {
+		set {
+			// Find a midpoint that is a random distance from the actual
+			// midpoint between the current position and the value passed in
+			Vector3 mid = (transform.position + value)/2f;
+			// The random distance will be within 1/4 of the magnitude of the
+			// line from the actual midpoint
+			float mag = (transform.position - value).magnitude;
+			mid += Random.insideUnitSphere * mag*0.25f;
+			// Create a List<Vector3> of Bezier points
+			pts = new List<Vector3>() { transform.position, mid, value };
+			// If timeStart is at the default -1, then set it
+			if (timeStart == -1 ) timeStart = Time.time;
+		}
+	}
+	// Moves immediately to the new position
+	public Vector3 position {
+		set {
 			transform.position = value;
-		}//end of set
-	}//end of pos
-}//end of class
+		}
+	}
+
+	// Interpolation code
+	void Update() {
+		if (timeStart == -1) return;
+
+		// Standard linear interpolation code
+		float u = (Time.time-timeStart)/timeDuration;
+		u = Mathf.Clamp01(u);
+		float u1 = Easing.Ease(u,easingCurve);
+		Vector3 v = Utils.Bezier(u1, pts);
+		transform.position = v;
+
+		// If the interpolation is done, set timeStart back to -1
+		if (u == 1) timeStart = -1;
+	}
+}
